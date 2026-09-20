@@ -8,7 +8,7 @@ App Next.js + Supabase con tres partes:
 
 ---
 
-## 1. Crear el proyecto en Supabase (gratis)
+## 1. Crear el proyecto en Supabase 
 
 1. Ve a [supabase.com](https://supabase.com) y crea una cuenta / un proyecto nuevo.
 2. Ve a **SQL Editor** y pega el contenido de `supabase/schema.sql` (está en este mismo proyecto). Dale a **Run**. Esto crea todas las tablas, los permisos (RLS) y el trigger que da de alta el perfil automáticamente al crear un usuario.
