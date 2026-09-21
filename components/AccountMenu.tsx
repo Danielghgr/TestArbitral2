@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function AccountMenu() {
+export default function AccountMenu({
+  mostrarMisResultados = true
+}: {
+  mostrarMisResultados?: boolean;
+}) {
   const router = useRouter();
   const [saliendo, setSaliendo] = useState(false);
 
@@ -18,9 +22,11 @@ export default function AccountMenu() {
 
   return (
     <div className="flex justify-end gap-4 text-sm mb-4">
-      <a href="/mis-resultados" className="text-muted hover:text-white">
-        Mis resultados
-      </a>
+      {mostrarMisResultados && (
+        <a href="/mis-resultados" className="text-muted hover:text-white">
+          Mis resultados
+        </a>
+      )}
       <a href="/cuenta" className="text-muted hover:text-white">
         Cambiar contraseña
       </a>

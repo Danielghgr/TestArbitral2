@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div>
-      <AccountMenu />
+      <AccountMenu mostrarMisResultados={false} />
       <header className="mb-6">
         <h1 className="text-xl font-bold mb-3">
           {esAdmin ? "Panel de administración" : "Resultados"}
