@@ -1,115 +1,145 @@
-# Test de Árbitros — FBM (app completa con login)
+# Test de Árbitros — FBM
 
-App Next.js + Supabase con tres partes:
+App web con login para que los árbitros de la Federación de Baloncesto de Madrid hagan un test oficial mensual, más un modo de práctica libre sin login. Construida con Next.js + Supabase, desplegada en Vercel.
 
-- **`/practica`** — pública, sin login, tests aleatorios ilimitados. Solo registra un contador anónimo de usos (sin nota, sin usuario).
-- **`/test`** — test oficial, requiere login, un único intento por usuario y periodo abierto.
-- **`/admin`** — panel para el administrador: alta/baja de usuarios, abrir/cerrar periodos, ver resultados y ver el contador de práctica.
-
----
-
-## 1. Crear el proyecto en Supabase 
-
-1. Ve a [supabase.com](https://supabase.com) y crea una cuenta / un proyecto nuevo.
-2. Ve a **SQL Editor** y pega el contenido de `supabase/schema.sql` (está en este mismo proyecto). Dale a **Run**. Esto crea todas las tablas, los permisos (RLS) y el trigger que da de alta el perfil automáticamente al crear un usuario.
-3. Ve a **Project Settings → API** y copia:
-   - `Project URL` → será `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → será `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key (¡secreta!) → será `SUPABASE_SERVICE_ROLE_KEY`
+- **`/practica`** — pública, sin login, tests aleatorios ilimitados para entrenar.
+- **`/login` → `/test`** — test oficial, un único intento por periodo abierto.
+- **`/admin`** — panel de gestión, con distintas vistas según el rol.
 
 ---
 
-## 2. Configurar el proyecto en local (opcional, para probar antes de publicar)
+## 1. Roles y qué puede hacer cada uno
 
-```bash
-npm install
-cp .env.example .env.local
-# rellena .env.local con las 3 claves del paso anterior
-npm run dev
-```
+Hay tres roles, además de cualquiera que no tenga cuenta (visitante anónimo):
 
-Abre `http://localhost:3000`.
+| | Visitante (sin login) | Árbitro | Responsable | Admin |
+|---|---|---|---|---|
+| Hacer tests de práctica (`/practica`) | ✅ | ✅ | ✅ | ✅ |
+| Hacer el test oficial (`/test`) | ❌ | ✅ (un intento por periodo) | ❌ | ❌ |
+| Ver su propio historial (`/mis-resultados`) | ❌ | ✅ | ❌ | ❌ |
+| Cambiar su propia contraseña (`/cuenta`) | ❌ | ✅ | ✅ | ✅ |
+| Ver los resultados de **todos** los árbitros | ❌ | ❌ | ✅ | ✅ |
+| Filtrar y exportar resultados a Excel | ❌ | ❌ | ✅ | ✅ |
+| Dar de alta / baja usuarios | ❌ | ❌ | ❌ | ✅ |
+| Cambiar la categoría o el rol de un usuario | ❌ | ❌ | ❌ | ✅ |
+| Abrir / cerrar periodos de test | ❌ | ❌ | ❌ | ✅ |
+| Ver estadísticas de uso del modo práctica | ❌ | ❌ | ❌ | ✅ |
+
+**Detalle de cada rol:**
+
+- **Árbitro** (rol `usuario` en la base de datos): es el rol por defecto de cualquier usuario que se dé de alta. Solo ve el test oficial, su propio historial y su cuenta. Al iniciar sesión entra directo en `/test`.
+- **Responsable**: pensado para alguien que solo necesita **consultar** resultados (por ejemplo, un coordinador), sin poder tocar usuarios ni periodos. Al iniciar sesión entra directo en la pantalla de resultados, y si intenta entrar a cualquier otra URL del panel de admin (usuarios, periodos...) escribiéndola a mano, se le redirige de vuelta — está bloqueado también a nivel de base de datos, no es solo que no vea el botón.
+- **Admin**: acceso total al panel. Al iniciar sesión entra en `/admin`, con las 5 pestañas: Resumen, Usuarios, Periodos, Resultados y Uso de práctica.
 
 ---
 
-## 3. Importar tus preguntas
+## 2. Cómo dar de alta (o gestionar) usuarios
 
-Usa el script incluido para subir tu Excel (mismas columnas de siempre:
-`Question`, `Answer 1`, `Answer 2`, `Answer 3`, `Correct Answers`,
-`Answer Explanation`) directamente a la tabla `preguntas` de Supabase:
+Todo se hace desde el panel, sin tocar Supabase directamente:
+
+1. Entra como **admin** en `/admin/usuarios`.
+2. En "Dar de alta un usuario", rellena:
+   - **Email** — será su usuario para iniciar sesión.
+   - **Nombre** (opcional).
+   - **Contraseña inicial** — la eliges tú; no hay email de confirmación, la cuenta queda activa al momento. Anótala en algún sitio seguro para pasársela a la persona, porque tampoco tú podrás volver a consultarla después.
+   - **Categoría** — desplegable (1ª Nacional, 1ª Autonómica, Autonómico Grupo A/B/C, Grupo de Tecnificación, Autonómico Primer Año, Escuela, o "Sin categoría").
+   - **Rol** — Árbitro / Responsable / Admin.
+3. Pulsa "Crear usuario".
+
+**Para editar a alguien que ya existe**, en la tabla de abajo cada fila tiene desplegables de Categoría y Rol que se guardan solos al cambiarlos (sin botón de "guardar"), y un botón "Dar de baja" / "Reactivar" para bloquear o desbloquear el acceso sin borrar su cuenta ni su historial.
+
+**Para que alguien cambie su propia contraseña** más adelante, no hace falta que el admin intervenga: cualquier usuario puede hacerlo él mismo desde "Cambiar contraseña" (arriba a la derecha, una vez logueado) → `/cuenta`.
+
+---
+
+## 3. Cómo cambiar las preguntas del test
+
+Las preguntas viven en la tabla `preguntas` de Supabase, y las usan tanto el test oficial como el modo práctica (es el mismo banco). Hay dos formas de tocarlas:
+
+### Opción A — Reemplazar todo el banco desde un Excel (recomendado para cambios grandes)
+
+Usa el script incluido en `scripts/importar-preguntas.mjs`. El Excel debe tener exactamente estas columnas (mismo nombre, no hace falta el mismo orden):
+
+- `Question`
+- `Answer 1`
+- `Answer 2`
+- `Answer 3`
+- `Correct Answers` → un número: `1`, `2` o `3` (cuál de las tres es la correcta)
+- `Answer Explanation` → opcional, puede ir vacío en algunas filas
+
+Desde tu ordenador (necesitas Node.js instalado):
 
 ```bash
 npm install xlsx @supabase/supabase-js
-SUPABASE_URL=https://xxxx.supabase.co SUPABASE_SERVICE_ROLE_KEY=eyJ... node scripts/importar-preguntas.mjs ruta/a/tu/excel.xlsx
+SUPABASE_URL=https://tu-proyecto.supabase.co SUPABASE_SERVICE_ROLE_KEY=tu_clave_service_role node scripts/importar-preguntas.mjs ruta/a/tu/excel.xlsx
 ```
 
-Cada vez que quieras reemplazar el banco de preguntas, vuelve a ejecutar el
-script con el Excel nuevo (mismas columnas) — borra las preguntas anteriores
-y sube las nuevas.
+⚠️ Este script **borra todas las preguntas anteriores** y sube las nuevas del Excel (reemplazo completo, no añade). Si prefieres que añada en vez de reemplazar, hay que comentar la línea que hace el `delete` dentro del propio script.
+
+La `SUPABASE_URL` es tu URL de proyecto (sin nada detrás del `.co`), y la `SUPABASE_SERVICE_ROLE_KEY` la sacas de Supabase → Project Settings → API (la fila "service_role", no la "anon"). Es una clave secreta: no la compartas ni la subas a ningún sitio público.
+
+### Opción B — Editar preguntas sueltas directamente en Supabase
+
+Para corregir una pregunta puntual, añadir una nueva, o borrar una:
+
+1. Ve a Supabase → **Table Editor** → tabla `preguntas`.
+2. Edita la fila directamente haciendo doble clic en la celda que quieras cambiar, o usa "Insert row" para añadir una pregunta nueva, o el icono de papelera para borrar una.
+3. Los cambios se aplican al momento — no hace falta redesplegar nada en Vercel, ya que la app siempre lee las preguntas en tiempo real desde Supabase.
+
+**Columnas de la tabla `preguntas`:** `enunciado` (el texto de la pregunta), `opcion1`/`opcion2`/`opcion3` (las tres respuestas), `correcta` (número 1, 2 o 3), `explicacion` (texto que se muestra al corregir, puede dejarse vacío).
 
 ---
 
-## 4. Crear el primer usuario administrador
+## 4. Periodos del test oficial
 
-Antes de tener el panel de admin funcionando, necesitas al menos un admin:
+Solo el admin puede gestionarlos, desde `/admin/periodos`:
 
-1. En Supabase, ve a **Authentication → Users → Add user** y crea un usuario
-   (email + contraseña) manualmente. Esto disparará el trigger y creará su
-   fila en `profiles` con rol `usuario`.
-2. Ve a **SQL Editor** y ejecuta (cambia el email):
-   ```sql
-   update profiles set rol = 'admin' where email = 'admin@tuclub.com';
-   ```
-3. Ya puedes entrar en `/login` con ese usuario y acceder a `/admin`. Desde
-   ahí podrás dar de alta al resto de árbitros sin volver a tocar SQL.
+- Crea uno nuevo con un nombre (ej. "Marzo 2027"), fecha de inicio y fecha de fin.
+- Mientras la fecha de hoy esté dentro de ese rango y el periodo esté activo, el test oficial estará disponible para los árbitros en `/test`.
+- Cada árbitro solo puede hacer **un intento** por periodo — está bloqueado tanto en la interfaz como en la propia base de datos, así que no hay forma de saltárselo aunque se manipule la app desde el navegador.
+- El número de preguntas del test oficial es fijo (25), configurado en el código (`app/api/test/preguntas/route.ts`), no desde la interfaz.
 
 ---
 
-## 5. Subir el proyecto a GitHub y desplegarlo en Vercel
+## 5. Resultados
 
-1. Sube esta carpeta completa a un repositorio nuevo en GitHub (igual que
-   hiciste con el test estático: "Add file → Upload files", o con `git push`
-   si lo prefieres).
-2. En [vercel.com](https://vercel.com), **Add New → Project** y selecciona
-   ese repositorio. Vercel detecta que es Next.js automáticamente.
-3. Antes de pulsar Deploy, ve a **Environment Variables** y añade las
-   mismas 3 claves del paso 1 (`NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
-4. Dale a **Deploy**. En un par de minutos tendrás tu URL pública, con las
-   tres secciones (`/practica`, `/login`, `/admin`) funcionando.
+En `/admin/resultados` (visible para admin y responsable):
 
-Cada vez que subas un cambio al repositorio, Vercel vuelve a desplegar solo.
+- Filtros combinables: buscador por email/nombre, periodo, categoría, rango de nota (%), y rango de fechas.
+- Botón **"Exportar a Excel"**: descarga un `.xlsx` con exactamente las filas que estés viendo en ese momento (si filtras antes, exporta solo lo filtrado).
+
+Cada árbitro, además, puede ver su propio historial (solo el suyo) en `/mis-resultados`.
 
 ---
 
-## 6. Uso del día a día
+## 6. Uso de práctica
 
-- **Admin** entra en `/admin/periodos` y crea un periodo (ej. "Marzo 2027",
-  del 1 al 10). Mientras esté dentro de esas fechas y activo, el test
-  oficial estará disponible para los usuarios.
-- **Admin** entra en `/admin/usuarios` y da de alta a cada árbitro con su
-  email y una contraseña inicial (puede cambiarla luego desde Supabase si
-  hace falta un "olvidé mi contraseña", o se puede añadir esa función más
-  adelante).
-- **Árbitros** entran en `/login`, hacen el test una vez dentro del periodo,
-  y no pueden repetirlo (está bloqueado tanto en la interfaz como a nivel
-  de base de datos).
-- Cualquiera puede entrar en `/practica` en cualquier momento, sin login.
+En `/admin/practica` (solo admin) se ve cuántas veces se ha usado el modo práctica, agrupado por día. No se guarda quién lo hizo ni qué nota sacó — es un contador totalmente anónimo, solo de uso.
+
+---
+
+## 7. Mantenimiento: que Supabase no se pause
+
+El proyecto de Supabase gratuito se pausa automáticamente si pasan 7 días sin ninguna petición a la base de datos. Como el uso de esta app es mensual (por los periodos), hay un workflow de GitHub Actions (`.github/workflows/keep-alive.yml`) que hace una petición de lectura cada 3 días para evitarlo. No requiere que hagas nada una vez configurado — solo asegúrate de que los secrets `SUPABASE_URL` y `SUPABASE_ANON_KEY` están añadidos en el repositorio (GitHub → Settings → Secrets and variables → Actions).
+
+---
+
+## 8. Desplegar desde cero (referencia)
+
+Si algún día necesitas montar el proyecto en un Supabase/Vercel nuevos:
+
+1. **Supabase:** crea el proyecto, ejecuta `supabase/schema.sql` en el SQL Editor (crea tablas, seguridad y funciones), y copia las 3 claves de Project Settings → API.
+2. **Primer admin:** crea un usuario desde Supabase → Authentication → Users, y en el SQL Editor ejecuta `update profiles set rol = 'admin' where email = 'tu_email';`. A partir de ahí, ya puedes gestionar todo (incluidos más admins/responsables) desde el propio panel.
+3. **Preguntas:** importa tu Excel con `scripts/importar-preguntas.mjs` (ver sección 3).
+4. **Vercel:** conecta el repo de GitHub, añade las 3 variables de entorno de Supabase en Settings → Environment Variables (marca "Production" en las tres), y despliega. Framework Preset debe detectarse solo como "Next.js".
+5. **Keep-alive:** añade los secrets de GitHub Actions (sección 7) para que Supabase no se pause.
+
+Cada `git push` a `main` despliega automáticamente en Vercel.
 
 ---
 
 ## Notas técnicas
 
-- El número de preguntas del test oficial está fijado en el código
-  (`NUM_PREGUNTAS_TEST` en `app/api/test/preguntas/route.ts`, por defecto
-  20). Cámbialo si quieres otro número.
-- El límite de preguntas en modo práctica es 25 (igual que en la versión
-  estática anterior).
-- "Un solo intento por usuario y periodo" está garantizado a nivel de base
-  de datos (`unique(usuario_id, periodo_id)` en la tabla `intentos`), así
-  que aunque alguien manipule la app desde el navegador, la base de datos
-  rechazará un segundo envío.
-- La `service_role key` de Supabase (la que se salta la seguridad) **solo**
-  se usa en `app/api/admin/usuarios/route.ts`, en el servidor, y solo tras
-  comprobar que quien llama ya está autenticado como admin. Nunca llega al
-  navegador.
+- Stack: Next.js 14 (App Router) + Supabase (Postgres + Auth) + Tailwind, hosting estático/serverless en Vercel.
+- La seguridad de quién puede ver/tocar qué está aplicada a nivel de base de datos (Row Level Security de Supabase), no solo ocultando botones en la interfaz — así que aunque alguien manipule el navegador, sigue sin poder acceder a datos que no le correspondan.
+- La `service_role key` de Supabase (permisos totales, salta la seguridad) solo se usa en el servidor, en las rutas de `/api/admin/*`, y solo después de comprobar que quien llama ya está autenticado como admin. Nunca llega al navegador.
