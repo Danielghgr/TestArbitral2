@@ -40,8 +40,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Comprobación de rol admin para /admin (el propio layout de /admin
-  // vuelve a comprobarlo por si acaso, pero así evitamos un "flash" de contenido)
+  // Comprobación de rol para /admin: admin entra en todo, responsable solo
+  // en /admin/resultados, y cualquier otro rol no entra (el layout de /admin
+  // vuelve a comprobarlo por si acaso, pero así evitamos un "flash" de contenido).
   if (path.startsWith("/admin") && user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -49,7 +50,15 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (profile?.rol !== "admin") {
+    if (profile?.rol === "admin") {
+      // acceso completo
+    } else if (profile?.rol === "responsable") {
+      if (!path.startsWith("/admin/resultados")) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin/resultados";
+        return NextResponse.redirect(url);
+      }
+    } else {
       const url = request.nextUrl.clone();
       url.pathname = "/test";
       return NextResponse.redirect(url);

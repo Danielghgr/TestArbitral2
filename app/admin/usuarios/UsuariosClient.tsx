@@ -13,6 +13,12 @@ const CATEGORIAS = [
   "Escuela"
 ];
 
+const ROLES = [
+  { value: "usuario", label: "Usuario (árbitro)" },
+  { value: "responsable", label: "Responsable (solo resultados)" },
+  { value: "admin", label: "Admin" }
+];
+
 type Usuario = {
   id: string;
   email: string | null;
@@ -29,6 +35,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
   const [nombre, setNombre] = useState("");
   const [password, setPassword] = useState("");
   const [categoria, setCategoria] = useState("");
+  const [rol, setRol] = useState("usuario");
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
 
@@ -40,7 +47,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
       const res = await fetch("/api/admin/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, nombre, categoria: categoria || null })
+        body: JSON.stringify({ email, password, nombre, categoria: categoria || null, rol })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al crear el usuario");
@@ -51,7 +58,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
           email,
           nombre,
           categoria: categoria || null,
-          rol: "usuario",
+          rol,
           activo: true,
           created_at: new Date().toISOString()
         },
@@ -61,6 +68,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
       setNombre("");
       setPassword("");
       setCategoria("");
+      setRol("usuario");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -85,6 +93,15 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: u.id, categoria: valor })
+    });
+  }
+
+  async function cambiarRol(u: Usuario, nuevoRol: string) {
+    setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, rol: nuevoRol } : x)));
+    await fetch("/api/admin/usuarios", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: u.id, rol: nuevoRol })
     });
   }
 
@@ -124,6 +141,13 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
               </option>
             ))}
           </select>
+          <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
+            {ROLES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
           <button type="submit" className="btn-primary sm:col-span-2" disabled={creando}>
             {creando ? "Creando..." : "Crear usuario"}
           </button>
@@ -139,6 +163,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
               <th>Email</th>
               <th>Nombre</th>
               <th>Categoría</th>
+              <th>Rol</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -158,6 +183,19 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
                     {CATEGORIAS.map((c) => (
                       <option key={c} value={c}>
                         {c}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <select
+                    className="input !py-1 !px-2 text-xs !w-auto min-w-[200px]"
+                    value={u.rol}
+                    onChange={(e) => cambiarRol(u, e.target.value)}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
                       </option>
                     ))}
                   </select>

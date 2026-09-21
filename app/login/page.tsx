@@ -64,7 +64,11 @@ function LoginForm() {
       return;
     }
 
-    router.push(profile.rol === "admin" ? "/admin" : redirect);
+    let destino = redirect;
+    if (profile.rol === "admin") destino = "/admin";
+    else if (profile.rol === "responsable") destino = "/admin/resultados";
+
+    router.push(destino);
     router.refresh();
   }
 

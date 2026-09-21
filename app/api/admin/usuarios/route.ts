@@ -27,12 +27,14 @@ const CATEGORIAS = [
   "Escuela"
 ];
 
+const ROLES = ["usuario", "responsable", "admin"];
+
 // Crea un usuario nuevo (email + contraseña que decide el admin).
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
-  const { email, password, nombre, categoria } = await request.json();
+  const { email, password, nombre, categoria, rol } = await request.json();
   if (!email || !password) {
     return NextResponse.json({ error: "Email y contraseña son obligatorios" }, { status: 400 });
   }
@@ -41,6 +43,9 @@ export async function POST(request: Request) {
   }
   if (categoria && !CATEGORIAS.includes(categoria)) {
     return NextResponse.json({ error: "Categoría no válida" }, { status: 400 });
+  }
+  if (rol && !ROLES.includes(rol)) {
+    return NextResponse.json({ error: "Rol no válido" }, { status: 400 });
   }
 
   const adminClient = createAdminClient();
@@ -55,33 +60,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  // El trigger de la base de datos ya crea la fila en profiles; aquí solo
-  // rellenamos la categoría si se indicó una. Usamos el cliente admin porque
-  // la tabla profiles no tiene policy de UPDATE para el cliente normal
-  // (por diseño, solo se puede tocar desde el servidor con permisos de admin).
-  if (categoria && data.user) {
-    await adminClient.from("profiles").update({ categoria }).eq("id", data.user.id);
+  // El trigger de la base de datos ya crea la fila en profiles (con rol
+  // "usuario" por defecto); aquí rellenamos categoría y/o rol si se
+  // indicaron. Usamos el cliente admin porque la tabla profiles no tiene
+  // policy de UPDATE para el cliente normal (por diseño).
+  const cambiosIniciales: Record<string, unknown> = {};
+  if (categoria) cambiosIniciales.categoria = categoria;
+  if (rol && rol !== "usuario") cambiosIniciales.rol = rol;
+
+  if (Object.keys(cambiosIniciales).length > 0 && data.user) {
+    await adminClient.from("profiles").update(cambiosIniciales).eq("id", data.user.id);
   }
 
   return NextResponse.json({ ok: true, id: data.user?.id });
 }
 
-// Actualiza campos del perfil: activo y/o categoría.
+// Actualiza campos del perfil: activo, categoría y/o rol.
 export async function PATCH(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
-  const { id, activo, categoria } = await request.json();
+  const { id, activo, categoria, rol } = await request.json();
   if (!id) {
     return NextResponse.json({ error: "Falta el id del usuario" }, { status: 400 });
   }
   if (categoria !== undefined && categoria !== null && !CATEGORIAS.includes(categoria)) {
     return NextResponse.json({ error: "Categoría no válida" }, { status: 400 });
   }
+  if (rol !== undefined && !ROLES.includes(rol)) {
+    return NextResponse.json({ error: "Rol no válido" }, { status: 400 });
+  }
 
   const cambios: Record<string, unknown> = {};
   if (typeof activo === "boolean") cambios.activo = activo;
   if (categoria !== undefined) cambios.categoria = categoria;
+  if (rol !== undefined) cambios.rol = rol;
 
   // Igual que en el alta: profiles no tiene policy de UPDATE para el cliente
   // normal, así que usamos el cliente admin (ya verificamos arriba que quien
