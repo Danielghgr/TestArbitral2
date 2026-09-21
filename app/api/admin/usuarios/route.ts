@@ -56,10 +56,11 @@ export async function POST(request: Request) {
   }
 
   // El trigger de la base de datos ya crea la fila en profiles; aquí solo
-  // rellenamos la categoría si se indicó una.
+  // rellenamos la categoría si se indicó una. Usamos el cliente admin porque
+  // la tabla profiles no tiene policy de UPDATE para el cliente normal
+  // (por diseño, solo se puede tocar desde el servidor con permisos de admin).
   if (categoria && data.user) {
-    const supabase = createClient();
-    await supabase.from("profiles").update({ categoria }).eq("id", data.user.id);
+    await adminClient.from("profiles").update({ categoria }).eq("id", data.user.id);
   }
 
   return NextResponse.json({ ok: true, id: data.user?.id });
@@ -82,8 +83,11 @@ export async function PATCH(request: Request) {
   if (typeof activo === "boolean") cambios.activo = activo;
   if (categoria !== undefined) cambios.categoria = categoria;
 
-  const supabase = createClient();
-  const { error } = await supabase.from("profiles").update(cambios).eq("id", id);
+  // Igual que en el alta: profiles no tiene policy de UPDATE para el cliente
+  // normal, así que usamos el cliente admin (ya verificamos arriba que quien
+  // llama es un admin autenticado).
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.from("profiles").update(cambios).eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
