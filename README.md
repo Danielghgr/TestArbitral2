@@ -48,6 +48,14 @@ Todo se hace desde el panel, sin tocar Supabase directamente:
 
 **Para editar a alguien que ya existe**, en la tabla de abajo cada fila tiene desplegables de Categoría y Rol que se guardan solos al cambiarlos (sin botón de "guardar"), y un botón "Dar de baja" / "Reactivar" para bloquear o desbloquear el acceso sin borrar su cuenta ni su historial.
 
+**Para dar de alta a varios de golpe**, en esa misma página hay una tarjeta "Importar varios usuarios desde Excel":
+
+1. Pulsa "Descargar plantilla" para bajarte un Excel de ejemplo con las columnas correctas.
+2. Rellena una fila por persona. Columnas: `Email` y `Contraseña` (obligatorias), y opcionalmente `Nombre`, `Categoría` (debe escribirse igual que en la lista de categorías) y `Rol` (Árbitro / Responsable / Admin — si se deja vacío, se crea como Árbitro).
+3. Sube el archivo con el selector de archivo. Se crean uno a uno automáticamente, y al terminar se muestra una tabla con el resultado fila por fila (creado correctamente, o el motivo del fallo — por ejemplo un email duplicado).
+
+No hace falta terminal ni Node para esto — todo ocurre en el navegador.
+
 **Para que alguien cambie su propia contraseña** más adelante, no hace falta que el admin intervenga: cualquier usuario puede hacerlo él mismo desde "Cambiar contraseña" (arriba a la derecha, una vez logueado) → `/cuenta`.
 
 ---

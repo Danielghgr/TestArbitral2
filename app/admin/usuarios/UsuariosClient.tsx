@@ -105,6 +105,125 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
     });
   }
 
+  // --- Importación masiva desde Excel ---
+  const [importando, setImportando] = useState(false);
+  const [resultadoImport, setResultadoImport] = useState<
+    { fila: number; email: string; ok: boolean; mensaje: string }[] | null
+  >(null);
+
+  function normalizarCabecera(s: string) {
+    return s
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, ""); // quita acentos: "categoría" -> "categoria"
+  }
+
+  function resolverRol(valor: string): string {
+    const v = normalizarCabecera(valor || "");
+    if (["admin"].includes(v)) return "admin";
+    if (["responsable"].includes(v)) return "responsable";
+    return "usuario"; // "arbitro", "usuario", vacío, o cualquier otra cosa -> por defecto
+  }
+
+  function resolverCategoria(valor: string): string | null {
+    if (!valor) return null;
+    const v = normalizarCabecera(valor);
+    const match = CATEGORIAS.find((c) => normalizarCabecera(c) === v);
+    return match || null;
+  }
+
+  async function descargarPlantilla() {
+    const XLSX = await import("xlsx");
+    const ejemplo = [
+      {
+        Email: "nombre.apellido@ejemplo.com",
+        Contraseña: "cambiar123",
+        Nombre: "Nombre Apellido",
+        Categoría: "Escuela",
+        Rol: "Árbitro"
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(ejemplo);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
+    XLSX.writeFile(wb, "plantilla_usuarios.xlsx");
+  }
+
+  async function importarExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // permite volver a elegir el mismo archivo si hace falta reintentar
+
+    setImportando(true);
+    setResultadoImport(null);
+
+    const XLSX = await import("xlsx");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const filas: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+    const resultados: { fila: number; email: string; ok: boolean; mensaje: string }[] = [];
+    const nuevosUsuarios: Usuario[] = [];
+
+    for (let i = 0; i < filas.length; i++) {
+      const fila = filas[i];
+      // Busca cada columna sin importar mayúsculas/acentos/orden.
+      const claves = Object.keys(fila).reduce<Record<string, string>>((acc, k) => {
+        acc[normalizarCabecera(k)] = String(fila[k] ?? "").trim();
+        return acc;
+      }, {});
+
+      const email = claves["email"] || claves["correo"] || "";
+      const password = claves["contrasena"] || claves["password"] || claves["clave"] || "";
+      const nombre = claves["nombre"] || "";
+      const categoria = resolverCategoria(claves["categoria"] || "");
+      const rol = resolverRol(claves["rol"] || "");
+
+      if (!email || !password) {
+        resultados.push({
+          fila: i + 2, // +2: la fila 1 es la cabecera, y los índices empiezan en 0
+          email: email || "(sin email)",
+          ok: false,
+          mensaje: "Falta email o contraseña"
+        });
+        continue;
+      }
+      if (password.length < 6) {
+        resultados.push({ fila: i + 2, email, ok: false, mensaje: "Contraseña muy corta (mínimo 6)" });
+        continue;
+      }
+
+      try {
+        const res = await fetch("/api/admin/usuarios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, nombre, categoria, rol })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error desconocido");
+
+        resultados.push({ fila: i + 2, email, ok: true, mensaje: "Creado correctamente" });
+        nuevosUsuarios.push({
+          id: data.id,
+          email,
+          nombre,
+          categoria,
+          rol,
+          activo: true,
+          created_at: new Date().toISOString()
+        });
+      } catch (err: any) {
+        resultados.push({ fila: i + 2, email, ok: false, mensaje: err.message || "Error al crearlo" });
+      }
+    }
+
+    setUsuarios((prev) => [...nuevosUsuarios, ...prev]);
+    setResultadoImport(resultados);
+    setImportando(false);
+  }
+
   return (
     <div className="space-y-6">
       <div className="card">
@@ -153,6 +272,55 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
           </button>
         </form>
         {error && <p className="text-bad text-sm mt-2">{error}</p>}
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 className="font-bold">Importar varios usuarios desde Excel</h2>
+          <button className="btn-secondary !w-auto px-3 py-1 text-xs" onClick={descargarPlantilla}>
+            Descargar plantilla
+          </button>
+        </div>
+        <p className="text-muted text-sm mb-4">
+          Columnas: <strong>Email</strong> y <strong>Contraseña</strong> (obligatorias), y opcionalmente{" "}
+          <strong>Nombre</strong>, <strong>Categoría</strong> (debe coincidir con una de la lista) y{" "}
+          <strong>Rol</strong> (Árbitro / Responsable / Admin — si se deja vacío, se crea como Árbitro).
+        </p>
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={importarExcel}
+          disabled={importando}
+          className="input"
+        />
+        {importando && <p className="text-muted text-sm mt-3">Importando, no cierres esta pantalla...</p>}
+
+        {resultadoImport && (
+          <div className="mt-4 overflow-x-auto">
+            <p className="text-sm mb-2">
+              {resultadoImport.filter((r) => r.ok).length} creados correctamente de{" "}
+              {resultadoImport.length} filas.
+            </p>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Fila</th>
+                  <th>Email</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultadoImport.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.fila}</td>
+                    <td>{r.email}</td>
+                    <td className={r.ok ? "text-good" : "text-bad"}>{r.mensaje}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card overflow-x-auto">
