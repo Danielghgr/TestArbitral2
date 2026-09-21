@@ -14,8 +14,8 @@ const CATEGORIAS = [
 ];
 
 const ROLES = [
-  { value: "usuario", label: "Usuario (árbitro)" },
-  { value: "responsable", label: "Responsable (solo resultados)" },
+  { value: "usuario", label: "Árbitro" },
+  { value: "responsable", label: "Responsable" },
   { value: "admin", label: "Admin" }
 ];
 
