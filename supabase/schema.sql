@@ -7,8 +7,7 @@
 -- Extiende auth.users con rol y estado activo/inactivo.
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  email text,
-  nombre text,
+  nick text not null unique,
   categoria text check (categoria in (
     '1ª Nacional',
     '1ª Autonómica',
@@ -19,18 +18,19 @@ create table if not exists profiles (
     'Autonómico Primer Año',
     'Escuela'
   )),
-  rol text not null default 'usuario' check (rol in ('usuario','admin')),
+  rol text not null default 'usuario' check (rol in ('usuario','admin','responsable')),
   activo boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 -- Crea automáticamente una fila en profiles cuando el admin da de alta
--- un usuario nuevo en auth.users (vía la API de administración).
+-- un usuario nuevo en auth.users (vía la API de administración). El NICK
+-- viaja en los metadatos del usuario (user_metadata.nick).
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, nombre, rol, activo)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'nombre', new.email), 'usuario', true);
+  insert into public.profiles (id, nick, rol, activo)
+  values (new.id, coalesce(new.raw_user_meta_data->>'nick', new.id::text), 'usuario', true);
   return new;
 end;
 $$ language plpgsql security definer;
@@ -102,6 +102,19 @@ as $$
   );
 $$;
 
+-- Admin o "responsable" (rol de solo consulta de resultados).
+create or replace function public.can_ver_resultados()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from profiles where id = auth.uid() and rol in ('admin', 'responsable')
+  );
+$$;
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -118,7 +131,7 @@ create policy "usuario ve su propio perfil"
 
 create policy "admin ve todos los perfiles"
   on profiles for select
-  using (public.is_admin());
+  using (public.can_ver_resultados());
 
 -- (la creación/edición de usuarios se hace SIEMPRE desde el servidor con la
 -- service_role key, que se salta RLS -> no hace falta policy de insert/update aquí)
@@ -154,7 +167,7 @@ create policy "usuario crea su propio intento"
 
 create policy "admin ve todos los intentos"
   on intentos for select
-  using (public.is_admin());
+  using (public.can_ver_resultados());
 
 -- PRACTICA_STATS: cualquiera (incluso anónimo) puede INSERTAR (sumar +1),
 -- pero solo el admin puede LEER el contador agregado.

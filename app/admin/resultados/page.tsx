@@ -9,9 +9,7 @@ export default async function ResultadosPage() {
     .select("id, puntuacion, total_preguntas, fecha, usuario_id, periodo_id")
     .order("fecha", { ascending: false });
 
-  const { data: perfiles } = await supabase
-    .from("profiles")
-    .select("id, email, nombre, categoria");
+  const { data: perfiles } = await supabase.from("profiles").select("id, nick, categoria");
 
   const { data: periodos } = await supabase.from("periodos").select("id, nombre");
 
@@ -22,8 +20,7 @@ export default async function ResultadosPage() {
     const perfil = perfilPorId.get(i.usuario_id);
     return {
       id: i.id,
-      email: perfil?.email || "",
-      nombre: perfil?.nombre || "",
+      nick: perfil?.nick || "",
       categoria: perfil?.categoria || "",
       periodo: periodoPorId.get(i.periodo_id) || "",
       puntuacion: i.puntuacion,

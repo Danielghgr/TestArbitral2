@@ -21,8 +21,7 @@ const ROLES = [
 
 type Usuario = {
   id: string;
-  email: string | null;
-  nombre: string | null;
+  nick: string;
   categoria: string | null;
   rol: string;
   activo: boolean;
@@ -31,8 +30,7 @@ type Usuario = {
 
 export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciales: Usuario[] }) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales);
-  const [email, setEmail] = useState("");
-  const [nombre, setNombre] = useState("");
+  const [nick, setNick] = useState("");
   const [password, setPassword] = useState("");
   const [categoria, setCategoria] = useState("");
   const [rol, setRol] = useState("usuario");
@@ -47,7 +45,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
       const res = await fetch("/api/admin/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, nombre, categoria: categoria || null, rol })
+        body: JSON.stringify({ nick, password, categoria: categoria || null, rol })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al crear el usuario");
@@ -55,8 +53,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
       setUsuarios((prev) => [
         {
           id: data.id,
-          email,
-          nombre,
+          nick,
           categoria: categoria || null,
           rol,
           activo: true,
@@ -64,8 +61,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
         },
         ...prev
       ]);
-      setEmail("");
-      setNombre("");
+      setNick("");
       setPassword("");
       setCategoria("");
       setRol("usuario");
@@ -108,7 +104,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
   // --- Importación masiva desde Excel ---
   const [importando, setImportando] = useState(false);
   const [resultadoImport, setResultadoImport] = useState<
-    { fila: number; email: string; ok: boolean; mensaje: string }[] | null
+    { fila: number; nick: string; ok: boolean; mensaje: string }[] | null
   >(null);
 
   function normalizarCabecera(s: string) {
@@ -137,9 +133,8 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
     const XLSX = await import("xlsx");
     const ejemplo = [
       {
-        Email: "nombre.apellido@ejemplo.com",
+        NICK: "arbitro1",
         Contraseña: "cambiar123",
-        Nombre: "Nombre Apellido",
         Categoría: "Escuela",
         Rol: "Árbitro"
       }
@@ -164,7 +159,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const filas: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    const resultados: { fila: number; email: string; ok: boolean; mensaje: string }[] = [];
+    const resultados: { fila: number; nick: string; ok: boolean; mensaje: string }[] = [];
     const nuevosUsuarios: Usuario[] = [];
 
     for (let i = 0; i < filas.length; i++) {
@@ -175,23 +170,22 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
         return acc;
       }, {});
 
-      const email = claves["email"] || claves["correo"] || "";
+      const nickFila = claves["nick"] || "";
       const password = claves["contrasena"] || claves["password"] || claves["clave"] || "";
-      const nombre = claves["nombre"] || "";
       const categoria = resolverCategoria(claves["categoria"] || "");
       const rol = resolverRol(claves["rol"] || "");
 
-      if (!email || !password) {
+      if (!nickFila || !password) {
         resultados.push({
           fila: i + 2, // +2: la fila 1 es la cabecera, y los índices empiezan en 0
-          email: email || "(sin email)",
+          nick: nickFila || "(sin NICK)",
           ok: false,
-          mensaje: "Falta email o contraseña"
+          mensaje: "Falta NICK o contraseña"
         });
         continue;
       }
       if (password.length < 6) {
-        resultados.push({ fila: i + 2, email, ok: false, mensaje: "Contraseña muy corta (mínimo 6)" });
+        resultados.push({ fila: i + 2, nick: nickFila, ok: false, mensaje: "Contraseña muy corta (mínimo 6)" });
         continue;
       }
 
@@ -199,23 +193,22 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
         const res = await fetch("/api/admin/usuarios", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, nombre, categoria, rol })
+          body: JSON.stringify({ nick: nickFila, password, categoria, rol })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error desconocido");
 
-        resultados.push({ fila: i + 2, email, ok: true, mensaje: "Creado correctamente" });
+        resultados.push({ fila: i + 2, nick: nickFila, ok: true, mensaje: "Creado correctamente" });
         nuevosUsuarios.push({
           id: data.id,
-          email,
-          nombre,
+          nick: nickFila,
           categoria,
           rol,
           activo: true,
           created_at: new Date().toISOString()
         });
       } catch (err: any) {
-        resultados.push({ fila: i + 2, email, ok: false, mensaje: err.message || "Error al crearlo" });
+        resultados.push({ fila: i + 2, nick: nickFila, ok: false, mensaje: err.message || "Error al crearlo" });
       }
     }
 
@@ -230,19 +223,12 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
         <h2 className="font-bold mb-4">Dar de alta un usuario</h2>
         <form onSubmit={crearUsuario} className="grid gap-3 sm:grid-cols-2">
           <input
-            type="email"
-            required
-            placeholder="Email"
-            className="input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
             type="text"
-            placeholder="Nombre (opcional)"
+            required
+            placeholder="NICK"
             className="input"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
+            value={nick}
+            onChange={(e) => setNick(e.target.value)}
           />
           <input
             type="text"
@@ -282,9 +268,9 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
           </button>
         </div>
         <p className="text-muted text-sm mb-4">
-          Columnas: <strong>Email</strong> y <strong>Contraseña</strong> (obligatorias), y opcionalmente{" "}
-          <strong>Nombre</strong>, <strong>Categoría</strong> (debe coincidir con una de la lista) y{" "}
-          <strong>Rol</strong> (Árbitro / Responsable / Admin — si se deja vacío, se crea como Árbitro).
+          Columnas: <strong>NICK</strong> y <strong>Contraseña</strong> (obligatorias), y opcionalmente{" "}
+          <strong>Categoría</strong> (debe coincidir con una de la lista) y <strong>Rol</strong> (Árbitro
+          / Responsable / Admin — si se deja vacío, se crea como Árbitro).
         </p>
         <input
           type="file"
@@ -305,7 +291,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
               <thead>
                 <tr>
                   <th>Fila</th>
-                  <th>Email</th>
+                  <th>NICK</th>
                   <th>Resultado</th>
                 </tr>
               </thead>
@@ -313,7 +299,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
                 {resultadoImport.map((r, i) => (
                   <tr key={i}>
                     <td>{r.fila}</td>
-                    <td>{r.email}</td>
+                    <td>{r.nick}</td>
                     <td className={r.ok ? "text-good" : "text-bad"}>{r.mensaje}</td>
                   </tr>
                 ))}
@@ -328,8 +314,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Email</th>
-              <th>Nombre</th>
+              <th>NICK</th>
               <th>Categoría</th>
               <th>Rol</th>
               <th>Estado</th>
@@ -339,8 +324,7 @@ export default function UsuariosClient({ usuariosIniciales }: { usuariosIniciale
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id}>
-                <td>{u.email}</td>
-                <td>{u.nombre}</td>
+                <td>{u.nick}</td>
                 <td>
                   <select
                     className="input !py-1 !px-2 text-xs !w-auto min-w-[180px]"

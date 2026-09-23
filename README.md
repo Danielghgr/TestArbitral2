@@ -39,9 +39,8 @@ Todo se hace desde el panel, sin tocar Supabase directamente:
 
 1. Entra como **admin** en `/admin/usuarios`.
 2. En "Dar de alta un usuario", rellena:
-   - **Email** — será su usuario para iniciar sesión.
-   - **Nombre** (opcional).
-   - **Contraseña inicial** — la eliges tú; no hay email de confirmación, la cuenta queda activa al momento. Anótala en algún sitio seguro para pasársela a la persona, porque tampoco tú podrás volver a consultarla después.
+   - **NICK** — será su identificador único para iniciar sesión (no es un email real, aunque por dentro Supabase lo necesite en ese formato; eso lo gestiona la app sola, tú y los árbitros solo veis y usáis el NICK).
+   - **Contraseña inicial** — la eliges tú; no hay ningún email de confirmación, la cuenta queda activa al momento. Anótala en algún sitio seguro para pasársela a la persona, porque tampoco tú podrás volver a consultarla después.
    - **Categoría** — desplegable (1ª Nacional, 1ª Autonómica, Autonómico Grupo A/B/C, Grupo de Tecnificación, Autonómico Primer Año, Escuela, o "Sin categoría").
    - **Rol** — Árbitro / Responsable / Admin.
 3. Pulsa "Crear usuario".
@@ -51,8 +50,8 @@ Todo se hace desde el panel, sin tocar Supabase directamente:
 **Para dar de alta a varios de golpe**, en esa misma página hay una tarjeta "Importar varios usuarios desde Excel":
 
 1. Pulsa "Descargar plantilla" para bajarte un Excel de ejemplo con las columnas correctas.
-2. Rellena una fila por persona. Columnas: `Email` y `Contraseña` (obligatorias), y opcionalmente `Nombre`, `Categoría` (debe escribirse igual que en la lista de categorías) y `Rol` (Árbitro / Responsable / Admin — si se deja vacío, se crea como Árbitro).
-3. Sube el archivo con el selector de archivo. Se crean uno a uno automáticamente, y al terminar se muestra una tabla con el resultado fila por fila (creado correctamente, o el motivo del fallo — por ejemplo un email duplicado).
+2. Rellena una fila por persona. Columnas: `NICK` y `Contraseña` (obligatorias), y opcionalmente `Categoría` (debe escribirse igual que en la lista de categorías) y `Rol` (Árbitro / Responsable / Admin — si se deja vacío, se crea como Árbitro).
+3. Sube el archivo con el selector de archivo. Se crean uno a uno automáticamente, y al terminar se muestra una tabla con el resultado fila por fila (creado correctamente, o el motivo del fallo — por ejemplo un NICK duplicado).
 
 No hace falta terminal ni Node para esto — todo ocurre en el navegador.
 
@@ -113,7 +112,7 @@ Solo el admin puede gestionarlos, desde `/admin/periodos`:
 
 En `/admin/resultados` (visible para admin y responsable):
 
-- Filtros combinables: buscador por email/nombre, periodo, categoría, rango de nota (%), y rango de fechas.
+- Filtros combinables: buscador por NICK, periodo, categoría, rango de nota (%), y rango de fechas.
 - Botón **"Exportar a Excel"**: descarga un `.xlsx` con exactamente las filas que estés viendo en ese momento (si filtras antes, exporta solo lo filtrado).
 
 Cada árbitro, además, puede ver su propio historial (solo el suyo) en `/mis-resultados`.
@@ -137,7 +136,11 @@ El proyecto de Supabase gratuito se pausa automáticamente si pasan 7 días sin 
 Si algún día necesitas montar el proyecto en un Supabase/Vercel nuevos:
 
 1. **Supabase:** crea el proyecto, ejecuta `supabase/schema.sql` en el SQL Editor (crea tablas, seguridad y funciones), y copia las 3 claves de Project Settings → API.
-2. **Primer admin:** crea un usuario desde Supabase → Authentication → Users, y en el SQL Editor ejecuta `update profiles set rol = 'admin' where email = 'tu_email';`. A partir de ahí, ya puedes gestionar todo (incluidos más admins/responsables) desde el propio panel.
+2. **Primer admin:** para el primerísimo admin (cuando todavía no hay ninguno que pueda entrar al panel para crear a los demás), créalo a mano: ve a Supabase → Authentication → Users → "Add user", y como NICK usa algo simple como `admin` — pon como email `admin@arbitros-fbm.local` (tiene que coincidir exactamente con lo que la app generaría a partir de ese NICK) y la contraseña que quieras. Después, en el SQL Editor:
+   ```sql
+   update profiles set nick = 'admin', rol = 'admin' where id = (select id from auth.users where email = 'admin@arbitros-fbm.local');
+   ```
+   A partir de ahí, entra en `/login` con NICK `admin` y esa contraseña, y ya puedes gestionar todo (incluidos más admins/responsables) desde el propio panel, sin volver a tocar SQL.
 3. **Preguntas:** importa tu Excel con `scripts/importar-preguntas.mjs` (ver sección 3).
 4. **Vercel:** conecta el repo de GitHub, añade las 3 variables de entorno de Supabase en Settings → Environment Variables (marca "Production" en las tres), y despliega. Framework Preset debe detectarse solo como "Next.js".
 5. **Keep-alive:** añade los secrets de GitHub Actions (sección 7) para que Supabase no se pause.

@@ -15,8 +15,7 @@ const CATEGORIAS = [
 
 type Fila = {
   id: string;
-  email: string;
-  nombre: string;
+  nick: string;
   categoria: string;
   periodo: string;
   puntuacion: number;
@@ -46,8 +45,7 @@ export default function ResultadosClient({
       const fechaISO = f.fecha.slice(0, 10);
 
       if (busqueda) {
-        const texto = `${f.email} ${f.nombre}`.toLowerCase();
-        if (!texto.includes(busqueda.toLowerCase())) return false;
+        if (!f.nick.toLowerCase().includes(busqueda.toLowerCase())) return false;
       }
       if (periodo && f.periodo !== periodo) return false;
       if (categoria && f.categoria !== categoria) return false;
@@ -74,8 +72,7 @@ export default function ResultadosClient({
     try {
       const XLSX = await import("xlsx");
       const filas = filtradas.map((f) => ({
-        Email: f.email,
-        Nombre: f.nombre,
+        NICK: f.nick,
         Categoría: f.categoria || "",
         Periodo: f.periodo,
         Puntuación: f.puntuacion,
@@ -100,7 +97,7 @@ export default function ResultadosClient({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             type="text"
-            placeholder="Buscar por email o nombre"
+            placeholder="Buscar por NICK"
             className="input sm:col-span-2 lg:col-span-4"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
@@ -182,7 +179,7 @@ export default function ResultadosClient({
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Usuario</th>
+              <th>NICK</th>
               <th>Categoría</th>
               <th>Periodo</th>
               <th>Nota</th>
@@ -194,7 +191,7 @@ export default function ResultadosClient({
               const pct = Math.round((f.puntuacion / f.total) * 100);
               return (
                 <tr key={f.id}>
-                  <td>{f.nombre || f.email}</td>
+                  <td>{f.nick}</td>
                   <td>{f.categoria || "—"}</td>
                   <td>{f.periodo}</td>
                   <td>

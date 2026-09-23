@@ -10,6 +10,8 @@ export default async function MisResultadosPage() {
 
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase.from("profiles").select("nick").eq("id", user.id).single();
+
   const { data: intentos } = await supabase
     .from("intentos")
     .select("id, puntuacion, total_preguntas, fecha, periodo_id")
@@ -23,7 +25,7 @@ export default async function MisResultadosPage() {
     <div>
       <AccountMenu />
       <h1 className="text-xl font-bold mb-1 text-center">Mis resultados</h1>
-      <p className="text-muted text-sm text-center mb-6">{user.email}</p>
+      <p className="text-muted text-sm text-center mb-6">{profile?.nick}</p>
 
       {(!intentos || intentos.length === 0) && (
         <div className="card text-center text-muted">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { nickToEmail, nickValido } from "@/lib/nick";
 
 // Comprueba que quien llama es un admin autenticado antes de usar la service_role key.
 async function requireAdmin() {
@@ -29,14 +30,17 @@ const CATEGORIAS = [
 
 const ROLES = ["usuario", "responsable", "admin"];
 
-// Crea un usuario nuevo (email + contraseña que decide el admin).
+// Crea un usuario nuevo (NICK + contraseña que decide el admin).
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
-  const { email, password, nombre, categoria, rol } = await request.json();
-  if (!email || !password) {
-    return NextResponse.json({ error: "Email y contraseña son obligatorios" }, { status: 400 });
+  const { nick, password, categoria, rol } = await request.json();
+  if (!nick || !password) {
+    return NextResponse.json({ error: "NICK y contraseña son obligatorios" }, { status: 400 });
+  }
+  if (!nickValido(nick)) {
+    return NextResponse.json({ error: "Ese NICK no es válido, usa letras o números" }, { status: 400 });
   }
   if (password.length < 6) {
     return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 });
@@ -50,18 +54,22 @@ export async function POST(request: Request) {
 
   const adminClient = createAdminClient();
   const { data, error } = await adminClient.auth.admin.createUser({
-    email,
+    email: nickToEmail(nick),
     password,
-    email_confirm: true, // no requiere que el usuario confirme el email
-    user_metadata: { nombre: nombre || email }
+    email_confirm: true, // no requiere confirmación (es un email técnico interno, no real)
+    user_metadata: { nick }
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    // El mensaje de Supabase habla de "email" (por dentro lo es), lo traducimos a NICK.
+    const mensaje = /already registered|already exists/i.test(error.message)
+      ? "Ese NICK ya está en uso, elige otro."
+      : error.message;
+    return NextResponse.json({ error: mensaje }, { status: 400 });
   }
 
-  // El trigger de la base de datos ya crea la fila en profiles (con rol
-  // "usuario" por defecto); aquí rellenamos categoría y/o rol si se
+  // El trigger de la base de datos ya crea la fila en profiles (con el nick
+  // y rol "usuario" por defecto); aquí rellenamos categoría y/o rol si se
   // indicaron. Usamos el cliente admin porque la tabla profiles no tiene
   // policy de UPDATE para el cliente normal (por diseño).
   const cambiosIniciales: Record<string, unknown> = {};

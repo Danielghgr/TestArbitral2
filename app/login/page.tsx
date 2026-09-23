@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { nickToEmail } from "@/lib/nick";
 
 export default function LoginPage() {
   return (
@@ -18,7 +19,7 @@ function LoginForm() {
   const redirect = searchParams.get("redirect") || "/test";
 
   // Evita el error de hidratación: el navegador (gestor de contraseñas nativo
-  // de Chrome, autocompletado, etc.) puede tocar los inputs de email/contraseña
+  // de Chrome, autocompletado, etc.) puede tocar los inputs de NICK/contraseña
   // antes de que React termine de hidratar. Renderizando el formulario real
   // solo después del montaje, el HTML inicial del servidor y el primer render
   // del cliente son idénticos (un simple estado de carga), así que no hay nada
@@ -28,7 +29,7 @@ function LoginForm() {
     setMounted(true);
   }, []);
 
-  const [email, setEmail] = useState("");
+  const [nick, setNick] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,12 +41,12 @@ function LoginForm() {
 
     const supabase = createClient();
     const { error: signInError, data } = await supabase.auth.signInWithPassword({
-      email,
+      email: nickToEmail(nick),
       password
     });
 
     if (signInError) {
-      setError("Usuario o contraseña incorrectos.");
+      setError("NICK o contraseña incorrectos.");
       setLoading(false);
       return;
     }
@@ -88,13 +89,13 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" suppressHydrationWarning>
         <div>
-          <label className="block text-sm text-muted mb-1">Usuario (email)</label>
+          <label className="block text-sm text-muted mb-1">NICK</label>
           <input
-            type="email"
+            type="text"
             required
             className="input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={nick}
+            onChange={(e) => setNick(e.target.value)}
             suppressHydrationWarning
           />
         </div>
