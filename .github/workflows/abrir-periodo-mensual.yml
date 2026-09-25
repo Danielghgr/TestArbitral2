@@ -1,0 +1,20 @@
+name: Abrir periodo mensual
+
+# Se ejecuta el día 1 de cada mes a las 06:00 UTC. También se puede lanzar
+# a mano desde la pestaña "Actions" de GitHub, por si un mes falla o hace
+# falta forzarlo.
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+jobs:
+  crear-periodo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint que abre el periodo
+        run: |
+          curl -sf -X POST "${{ secrets.APP_URL }}/api/cron/crear-periodo" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
+          echo "Periodo mensual comprobado/creado correctamente."
